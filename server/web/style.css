@@ -19,41 +19,54 @@ body {
     border-color: #e94560;
 }
 
-.nav-tabs {
+/* Server tabs at top */
+#server-tabs {
     border-bottom-color: #0f3460;
 }
 
-.nav-tabs .nav-link {
+#server-tabs .nav-link {
     color: #aaa;
     border-color: transparent;
 }
 
-.nav-tabs .nav-link:hover {
+#server-tabs .nav-link:hover {
     border-color: #0f3460;
     color: #eee;
 }
 
-.nav-tabs .nav-link.active {
+#server-tabs .nav-link.active {
     background-color: #16213e;
     border-color: #0f3460;
     border-bottom-color: #16213e;
     color: #eee;
 }
 
-#terminal-container {
-    height: calc(100vh - 200px);
+/* Sub-tabs (Live/History) */
+.nav-pills .nav-link {
+    color: #aaa;
+}
+
+.nav-pills .nav-link:hover {
+    color: #eee;
+}
+
+.nav-pills .nav-link.active {
+    background-color: #e94560;
+    color: #fff;
+}
+
+/* Terminal containers */
+.terminal-container {
+    height: calc(100vh - 150px);
     border: 1px solid #0f3460;
     border-radius: 4px;
     padding: 5px;
     background-color: #0a0a0a;
 }
 
-#history-terminal-container {
-    height: calc(100vh - 250px);
-    border: 1px solid #0f3460;
-    border-radius: 4px;
-    padding: 5px;
-    background-color: #0a0a0a;
+/* History view - shorter terminal to accommodate log list */
+#server-content .row .terminal-container {
+    height: calc(100vh - 180px);
 }
 
 .badge.bg-success {
@@ -89,17 +102,22 @@ body {
     background-color: #ffc107;
 }
 
-#server-list {
-    max-height: calc(100vh - 150px);
+/* Log list in history view */
+.log-list {
+    max-height: calc(100vh - 180px);
     overflow-y: auto;
 }
 
-#log-list {
-    max-height: calc(100vh - 250px);
-    overflow-y: auto;
+.log-list .list-group-item {
+    font-size: 11px;
+    padding: 6px 10px;
 }
 
-#log-list .list-group-item {
-    font-size: 12px;
-    padding: 8px 12px;
+/* Tab pane visibility */
+.tab-pane {
+    display: none;
+}
+
+.tab-pane.show.active {
+    display: block;
 }

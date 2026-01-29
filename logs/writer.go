@@ -64,6 +64,18 @@ func (w *Writer) getOrCreateFile(serverName string) (*os.File, error) {
 		return nil, fmt.Errorf("failed to create log directory: %w", err)
 	}
 
+	// Try to continue existing current.log if it exists
+	symlinkPath := filepath.Join(dir, "current.log")
+	if target, err := os.Readlink(symlinkPath); err == nil {
+		existingPath := filepath.Join(dir, target)
+		if f, err := os.OpenFile(existingPath, os.O_WRONLY|os.O_APPEND, 0644); err == nil {
+			w.files[serverName] = f
+			log.Infof("Continuing existing log file: %s", existingPath)
+			return f, nil
+		}
+	}
+
+	// Create new log file
 	filename := time.Now().Format("2006-01-02_15-04-05") + ".log"
 	path := filepath.Join(dir, filename)
 
@@ -75,7 +87,6 @@ func (w *Writer) getOrCreateFile(serverName string) (*os.File, error) {
 	w.files[serverName] = f
 
 	// Update current.log symlink
-	symlinkPath := filepath.Join(dir, "current.log")
 	os.Remove(symlinkPath)
 	os.Symlink(filename, symlinkPath)
 
@@ -110,6 +121,27 @@ func (w *Writer) ListLogs(serverName string) ([]string, error) {
 
 func (w *Writer) GetLogPath(serverName, filename string) string {
 	return filepath.Join(w.basePath, serverName, filename)
+}
+
+func (w *Writer) GetCurrentLogContent(serverName string) ([]byte, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	// Sync current file to disk first
+	if f, exists := w.files[serverName]; exists {
+		f.Sync()
+	}
+
+	// Read the current log file
+	currentPath := filepath.Join(w.basePath, serverName, "current.log")
+	data, err := os.ReadFile(currentPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []byte{}, nil
+		}
+		return nil, err
+	}
+	return data, nil
 }
 
 func (w *Writer) Cleanup() {
@@ -162,4 +194,76 @@ func (w *Writer) Close() {
 		f.Close()
 	}
 	w.files = make(map[string]*os.File)
+}
+
+func (w *Writer) ClearLogs(serverName string) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	// Close the current file if open
+	if f, exists := w.files[serverName]; exists {
+		f.Close()
+		delete(w.files, serverName)
+	}
+
+	dir := filepath.Join(w.basePath, serverName)
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			path := filepath.Join(dir, entry.Name())
+			os.Remove(path)
+		}
+	}
+
+	log.Infof("Cleared logs for %s", serverName)
+	return nil
+}
+
+func (w *Writer) ClearAllLogs() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	// Close all open files
+	for _, f := range w.files {
+		f.Close()
+	}
+	w.files = make(map[string]*os.File)
+
+	entries, err := os.ReadDir(w.basePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+
+	for _, serverDir := range entries {
+		if !serverDir.IsDir() {
+			continue
+		}
+
+		serverPath := filepath.Join(w.basePath, serverDir.Name())
+		logFiles, err := os.ReadDir(serverPath)
+		if err != nil {
+			continue
+		}
+
+		for _, logFile := range logFiles {
+			if !logFile.IsDir() {
+				path := filepath.Join(serverPath, logFile.Name())
+				os.Remove(path)
+			}
+		}
+	}
+
+	log.Info("Cleared all logs")
+	return nil
 }

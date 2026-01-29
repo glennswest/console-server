@@ -36,6 +36,13 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "event: connected\ndata: %s\n\n", name)
 	flusher.Flush()
 
+	// Send current log content as backlog
+	if backlog, err := s.logWriter.GetCurrentLogContent(name); err == nil && len(backlog) > 0 {
+		encoded := base64.StdEncoding.EncodeToString(backlog)
+		fmt.Fprintf(w, "data: %s\n\n", encoded)
+		flusher.Flush()
+	}
+
 	ctx := r.Context()
 	for {
 		select {

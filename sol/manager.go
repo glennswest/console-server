@@ -214,7 +214,7 @@ func (m *Manager) connectSOL(ctx context.Context, session *Session) error {
 				}
 
 				// Check for reboot
-				if m.rebootDetector != nil && m.rebootDetector.Check(string(data)) {
+				if m.rebootDetector != nil && m.rebootDetector.Check(session.ServerName, string(data)) {
 					log.Infof("Reboot detected for %s", session.ServerName)
 					if m.logWriter != nil {
 						m.logWriter.Rotate(session.ServerName)

@@ -1,44 +1,118 @@
-let currentServer = null;
 let servers = [];
-let historyTerminal = null;
-let historyFitAddon = null;
+let currentServer = null;
 
-// Per-server sessions: { name: { terminal, fitAddon, eventSource, container } }
+// Per-server sessions: { name: { terminal, fitAddon, eventSource, historyTerminal, historyFitAddon } }
 const serverSessions = {};
 
 async function fetchServers() {
     try {
         const response = await fetch('/api/servers');
-        servers = await response.json();
-        renderServerList();
-        document.getElementById('server-count').textContent = `${servers.length} servers`;
+        const newServers = await response.json();
 
-        // Start streams for all servers in background
-        servers.forEach(server => {
-            if (!serverSessions[server.name]) {
-                initServerSession(server.name);
-            }
-        });
+        // Check if server list changed
+        const serverNames = newServers.map(s => s.name).sort().join(',');
+        const oldServerNames = servers.map(s => s.name).sort().join(',');
+
+        if (serverNames !== oldServerNames) {
+            servers = newServers;
+            renderServerTabs();
+        } else {
+            // Just update status
+            servers = newServers;
+            updateServerStatus();
+        }
     } catch (error) {
         console.error('Failed to fetch servers:', error);
     }
 }
 
-function renderServerList() {
-    const list = document.getElementById('server-list');
+function renderServerTabs() {
+    const tabsContainer = document.getElementById('server-tabs');
+    const contentContainer = document.getElementById('server-content');
 
     if (servers.length === 0) {
-        list.innerHTML = '<div class="list-group-item text-muted">No servers found</div>';
+        tabsContainer.innerHTML = '<li class="nav-item"><span class="nav-link text-muted">No servers found</span></li>';
+        contentContainer.innerHTML = '';
         return;
     }
 
-    list.innerHTML = servers.map(server => `
-        <a href="#" class="list-group-item list-group-item-action ${currentServer === server.name ? 'active' : ''}"
-           onclick="selectServer('${server.name}'); return false;">
-            <span class="server-status ${server.connected ? 'online' : (server.online ? 'connecting' : 'offline')}"></span>
-            ${server.name}
-        </a>
+    // Build tabs
+    tabsContainer.innerHTML = servers.map((server, index) => `
+        <li class="nav-item">
+            <a class="nav-link ${index === 0 ? 'active' : ''}"
+               id="tab-${server.name}"
+               href="#"
+               onclick="selectServer('${server.name}'); return false;">
+                <span class="server-status ${server.connected ? 'online' : (server.online ? 'connecting' : 'offline')}"></span>
+                ${server.name}
+            </a>
+        </li>
     `).join('');
+
+    // Build content panels
+    contentContainer.innerHTML = servers.map((server, index) => `
+        <div class="tab-pane ${index === 0 ? 'show active' : ''}" id="panel-${server.name}">
+            <div class="d-flex justify-content-between align-items-center my-2">
+                <ul class="nav nav-pills" id="subtabs-${server.name}">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#" onclick="showSubTab('${server.name}', 'live'); return false;">Live</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="showSubTab('${server.name}', 'history'); return false;">History</a>
+                    </li>
+                </ul>
+                <div>
+                    <span id="status-${server.name}" class="badge ${server.connected ? 'bg-success' : 'bg-danger'} me-2">
+                        ${server.connected ? 'Connected' : 'Disconnected'}
+                    </span>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="clearServerLogs('${server.name}')">Clear Logs</button>
+                </div>
+            </div>
+            <div id="live-${server.name}" class="subtab-content">
+                <div id="terminal-${server.name}" class="terminal-container"></div>
+            </div>
+            <div id="history-${server.name}" class="subtab-content" style="display: none;">
+                <div class="row">
+                    <div class="col-md-2">
+                        <div class="list-group log-list" id="loglist-${server.name}"></div>
+                    </div>
+                    <div class="col-md-10">
+                        <div id="history-terminal-${server.name}" class="terminal-container"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+
+    // Initialize all server sessions
+    servers.forEach(server => {
+        initServerSession(server.name);
+    });
+
+    // Select first server
+    if (servers.length > 0) {
+        currentServer = servers[0].name;
+    }
+}
+
+function updateServerStatus() {
+    servers.forEach(server => {
+        // Update tab status indicator
+        const tab = document.getElementById(`tab-${server.name}`);
+        if (tab) {
+            const statusSpan = tab.querySelector('.server-status');
+            if (statusSpan) {
+                statusSpan.className = `server-status ${server.connected ? 'online' : (server.online ? 'connecting' : 'offline')}`;
+            }
+        }
+
+        // Update badge
+        const badge = document.getElementById(`status-${server.name}`);
+        if (badge) {
+            badge.className = `badge ${server.connected ? 'bg-success' : 'bg-danger'} me-2`;
+            badge.textContent = server.connected ? 'Connected' : 'Disconnected';
+        }
+    });
 }
 
 function createTerminal() {
@@ -80,17 +154,10 @@ function createTerminal() {
 }
 
 function initServerSession(name) {
-    const mainContainer = document.getElementById('terminal-container');
+    const container = document.getElementById(`terminal-${name}`);
+    if (!container) return;
 
-    // Create a container div for this server's terminal
-    const container = document.createElement('div');
-    container.id = `terminal-${name}`;
-    container.style.display = 'none';
-    container.style.width = '100%';
-    container.style.height = '100%';
-    mainContainer.appendChild(container);
-
-    // Create terminal
+    // Create live terminal
     const { term, fit } = createTerminal();
     term.open(container);
 
@@ -98,10 +165,14 @@ function initServerSession(name) {
         terminal: term,
         fitAddon: fit,
         eventSource: null,
-        container: container
+        historyTerminal: null,
+        historyFitAddon: null
     };
 
-    // Start streaming with auto-reconnect
+    // Fit after a short delay
+    setTimeout(() => fit.fit(), 100);
+
+    // Start streaming
     startServerStream(name);
 }
 
@@ -109,7 +180,6 @@ function startServerStream(name) {
     const session = serverSessions[name];
     if (!session) return;
 
-    // Close existing connection if any
     if (session.eventSource) {
         session.eventSource.close();
     }
@@ -127,7 +197,6 @@ function startServerStream(name) {
 
     eventSource.onerror = (error) => {
         console.error('SSE error for', name, ':', error);
-        // Auto-reconnect after 3 seconds
         if (eventSource.readyState === EventSource.CLOSED) {
             setTimeout(() => startServerStream(name), 3000);
         }
@@ -138,142 +207,173 @@ function startServerStream(name) {
 
 function selectServer(name) {
     currentServer = name;
-    renderServerList();
 
-    document.getElementById('no-server-selected').style.display = 'none';
-    document.getElementById('server-panel').style.display = 'block';
-    document.getElementById('server-name').textContent = name;
-
-    const server = servers.find(s => s.name === name);
-    updateConnectionStatus(server);
-
-    // Hide all terminal containers
-    Object.values(serverSessions).forEach(session => {
-        session.container.style.display = 'none';
+    // Update tab active states
+    document.querySelectorAll('#server-tabs .nav-link').forEach(tab => {
+        tab.classList.remove('active');
     });
+    document.getElementById(`tab-${name}`).classList.add('active');
 
-    // Show selected server's terminal
-    if (serverSessions[name]) {
-        serverSessions[name].container.style.display = 'block';
-        setTimeout(() => {
-            serverSessions[name].fitAddon.fit();
-        }, 10);
-    }
+    // Update panel visibility
+    document.querySelectorAll('#server-content .tab-pane').forEach(panel => {
+        panel.classList.remove('show', 'active');
+    });
+    document.getElementById(`panel-${name}`).classList.add('show', 'active');
 
-    // Show live tab by default
-    showTab('live');
-}
-
-function updateConnectionStatus(server) {
-    const badge = document.getElementById('connection-status');
-    if (server.connected) {
-        badge.className = 'badge bg-success';
-        badge.textContent = 'Connected';
-    } else if (server.online) {
-        badge.className = 'badge bg-warning';
-        badge.textContent = 'Connecting...';
-    } else {
-        badge.className = 'badge bg-danger';
-        badge.textContent = 'Offline';
+    // Refit the terminal
+    const session = serverSessions[name];
+    if (session && session.fitAddon) {
+        setTimeout(() => session.fitAddon.fit(), 50);
     }
 }
 
-function showTab(tab) {
-    document.querySelectorAll('.nav-link').forEach(link => {
-        link.classList.toggle('active', link.dataset.tab === tab);
-    });
+function showSubTab(serverName, tab) {
+    const subtabs = document.querySelectorAll(`#subtabs-${serverName} .nav-link`);
+    subtabs.forEach(t => t.classList.remove('active'));
 
-    document.getElementById('tab-live').style.display = tab === 'live' ? 'block' : 'none';
-    document.getElementById('tab-history').style.display = tab === 'history' ? 'block' : 'none';
+    const livePanel = document.getElementById(`live-${serverName}`);
+    const historyPanel = document.getElementById(`history-${serverName}`);
 
-    if (tab === 'history') {
-        loadLogList();
-    }
+    if (tab === 'live') {
+        subtabs[0].classList.add('active');
+        livePanel.style.display = 'block';
+        historyPanel.style.display = 'none';
 
-    // Refit terminals when tab changes
-    setTimeout(() => {
-        if (tab === 'live' && currentServer && serverSessions[currentServer]) {
-            serverSessions[currentServer].fitAddon.fit();
-        } else if (tab === 'history' && historyFitAddon) {
-            historyFitAddon.fit();
+        const session = serverSessions[serverName];
+        if (session && session.fitAddon) {
+            setTimeout(() => session.fitAddon.fit(), 50);
         }
-    }, 100);
+    } else {
+        subtabs[1].classList.add('active');
+        livePanel.style.display = 'none';
+        historyPanel.style.display = 'block';
+
+        loadLogList(serverName);
+    }
 }
 
-function initHistoryTerminal(containerId) {
-    const container = document.getElementById(containerId);
-    container.innerHTML = '';
-
-    const { term, fit } = createTerminal();
-    term.open(container);
-    fit.fit();
-
-    return { term, fit };
-}
-
-async function loadLogList() {
-    if (!currentServer) return;
-
+async function loadLogList(serverName) {
     try {
-        const response = await fetch(`/api/servers/${encodeURIComponent(currentServer)}/logs`);
+        const response = await fetch(`/api/servers/${encodeURIComponent(serverName)}/logs`);
         const logs = await response.json();
 
-        const list = document.getElementById('log-list');
+        const list = document.getElementById(`loglist-${serverName}`);
 
         if (!logs || logs.length === 0) {
-            list.innerHTML = '<div class="list-group-item text-muted">No logs available</div>';
+            list.innerHTML = '<div class="list-group-item text-muted small">No logs</div>';
             return;
         }
 
+        const session = serverSessions[serverName];
+        const currentLog = session ? session.currentLogFile : null;
+
         list.innerHTML = logs.map(log => `
-            <a href="#" class="list-group-item list-group-item-action"
-               onclick="loadLog('${log}'); return false;">
+            <a href="#" class="list-group-item list-group-item-action small ${currentLog === log ? 'active' : ''}"
+               id="logitem-${serverName}-${log.replace(/[^a-zA-Z0-9]/g, '_')}"
+               onclick="loadLog('${serverName}', '${log}'); return false;">
                 ${log}
             </a>
         `).join('');
+
+        // Initialize history terminal early so it's ready
+        if (session && !session.historyTerminal) {
+            const container = document.getElementById(`history-terminal-${serverName}`);
+            const { term, fit } = createTerminal();
+            term.open(container);
+            session.historyTerminal = term;
+            session.historyFitAddon = fit;
+            setTimeout(() => fit.fit(), 50);
+        }
     } catch (error) {
         console.error('Failed to load log list:', error);
     }
 }
 
-async function loadLog(filename) {
-    if (!currentServer) return;
+async function loadLog(serverName, filename) {
+    const session = serverSessions[serverName];
+    if (!session) return;
+
+    // Update active state in list immediately
+    const list = document.getElementById(`loglist-${serverName}`);
+    list.querySelectorAll('.list-group-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    const itemId = `logitem-${serverName}-${filename.replace(/[^a-zA-Z0-9]/g, '_')}`;
+    const activeItem = document.getElementById(itemId);
+    if (activeItem) {
+        activeItem.classList.add('active');
+    }
+
+    // Store current log file
+    session.currentLogFile = filename;
+
+    // Initialize history terminal if needed
+    if (!session.historyTerminal) {
+        const container = document.getElementById(`history-terminal-${serverName}`);
+        const { term, fit } = createTerminal();
+        term.open(container);
+        session.historyTerminal = term;
+        session.historyFitAddon = fit;
+        setTimeout(() => fit.fit(), 50);
+    }
+
+    // Clear and show loading indicator
+    session.historyTerminal.clear();
+    session.historyTerminal.write('\x1b[33mLoading...\x1b[0m');
 
     try {
-        const response = await fetch(`/api/servers/${encodeURIComponent(currentServer)}/logs/${encodeURIComponent(filename)}`);
+        const response = await fetch(`/api/servers/${encodeURIComponent(serverName)}/logs/${encodeURIComponent(filename)}`);
         const content = await response.text();
 
-        // Initialize history terminal if needed
-        if (!historyTerminal) {
-            const result = initHistoryTerminal('history-terminal-container');
-            historyTerminal = result.term;
-            historyFitAddon = result.fit;
-        } else {
-            historyTerminal.clear();
-        }
-
-        historyTerminal.write(content);
+        session.historyTerminal.clear();
+        session.historyTerminal.write(content);
     } catch (error) {
         console.error('Failed to load log:', error);
+        session.historyTerminal.clear();
+        session.historyTerminal.write('\x1b[31mError loading log\x1b[0m');
     }
 }
 
-// Tab click handlers
-document.querySelectorAll('.nav-link').forEach(link => {
-    link.addEventListener('click', (e) => {
-        e.preventDefault();
-        showTab(link.dataset.tab);
-    });
-});
+async function clearServerLogs(serverName) {
+    if (!confirm(`Clear all logs for ${serverName}?`)) return;
+
+    try {
+        await fetch(`/api/servers/${encodeURIComponent(serverName)}/logs/clear`, { method: 'POST' });
+
+        // Refresh log list if viewing history
+        const historyPanel = document.getElementById(`history-${serverName}`);
+        if (historyPanel && historyPanel.style.display !== 'none') {
+            loadLogList(serverName);
+        }
+    } catch (error) {
+        console.error('Failed to clear logs:', error);
+    }
+}
+
+async function clearAllLogs() {
+    if (!confirm('Clear ALL logs for ALL servers?')) return;
+
+    try {
+        await fetch('/api/logs/clear', { method: 'POST' });
+
+        // Refresh any visible log lists
+        servers.forEach(server => {
+            const historyPanel = document.getElementById(`history-${server.name}`);
+            if (historyPanel && historyPanel.style.display !== 'none') {
+                loadLogList(server.name);
+            }
+        });
+    } catch (error) {
+        console.error('Failed to clear all logs:', error);
+    }
+}
 
 // Handle window resize
 window.addEventListener('resize', () => {
     Object.values(serverSessions).forEach(session => {
-        if (session.container.style.display !== 'none') {
-            session.fitAddon.fit();
-        }
+        if (session.fitAddon) session.fitAddon.fit();
+        if (session.historyFitAddon) session.historyFitAddon.fit();
     });
-    if (historyFitAddon) historyFitAddon.fit();
 });
 
 // Initial load and periodic refresh

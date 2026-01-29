@@ -48,6 +48,8 @@ func (s *Server) setupRoutes() {
 	api.HandleFunc("/servers/{name}/logs", s.handleListLogs).Methods("GET")
 	api.HandleFunc("/servers/{name}/logs/{filename}", s.handleGetLog).Methods("GET")
 	api.HandleFunc("/servers/{name}/status", s.handleStatus).Methods("GET")
+	api.HandleFunc("/servers/{name}/logs/clear", s.handleClearLogs).Methods("POST")
+	api.HandleFunc("/logs/clear", s.handleClearAllLogs).Methods("POST")
 
 	// Serve embedded web files
 	webContent, _ := fs.Sub(webFS, "web")
