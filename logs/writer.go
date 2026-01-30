@@ -40,6 +40,11 @@ func (w *Writer) Write(serverName string, data []byte) error {
 }
 
 func (w *Writer) Rotate(serverName string) error {
+	_, err := w.RotateWithName(serverName, "")
+	return err
+}
+
+func (w *Writer) RotateWithName(serverName, logName string) (string, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
@@ -49,9 +54,42 @@ func (w *Writer) Rotate(serverName string) error {
 		delete(w.files, serverName)
 	}
 
-	// New file will be created on next write
+	dir := filepath.Join(w.basePath, serverName)
+	symlinkPath := filepath.Join(dir, "current.log")
+
+	// Remove current.log symlink
+	os.Remove(symlinkPath)
+
+	// If a custom name is provided, create the new file immediately
+	if logName != "" {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return "", fmt.Errorf("failed to create log directory: %w", err)
+		}
+
+		// Sanitize the log name (remove path separators, add .log extension if needed)
+		logName = filepath.Base(logName)
+		if filepath.Ext(logName) != ".log" {
+			logName = logName + ".log"
+		}
+
+		path := filepath.Join(dir, logName)
+		f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		if err != nil {
+			return "", fmt.Errorf("failed to create log file: %w", err)
+		}
+
+		w.files[serverName] = f
+
+		// Update current.log symlink
+		os.Symlink(logName, symlinkPath)
+
+		log.Infof("Rotated log for %s to %s", serverName, logName)
+		return logName, nil
+	}
+
+	// New file will be created on next write with timestamp
 	log.Infof("Rotated log for %s", serverName)
-	return nil
+	return "", nil
 }
 
 func (w *Writer) getOrCreateFile(serverName string) (*os.File, error) {

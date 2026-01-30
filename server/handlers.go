@@ -131,6 +131,52 @@ func (s *Server) handleClearAllLogs(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"status":"ok"}`))
 }
 
+func (s *Server) handleRotateLogs(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	name := vars["name"]
+
+	// Get optional log name from query param or form
+	logName := r.URL.Query().Get("name")
+	if logName == "" {
+		logName = r.FormValue("name")
+	}
+
+	newFile, err := s.logWriter.RotateWithName(name, logName)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"status":  "ok",
+		"message": "log rotated",
+		"file":    newFile,
+	})
+}
+
+func (s *Server) handleMacLookup(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	mac := vars["mac"]
+
+	// Normalize the input MAC
+	normalized := normalizeMac(mac)
+
+	serverName, found := s.macLookup[normalized]
+	if !found {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"error":"MAC address not found"}`))
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"mac":    mac,
+		"server": serverName,
+	})
+}
+
 func (s *Server) handleAnalytics(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	name := vars["name"]

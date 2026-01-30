@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"sync"
 	"time"
 
@@ -83,6 +84,13 @@ func NewAnalytics(dataPath string) *Analytics {
 		`Intel\(R\) Boot Agent`,
 		`CLIENT MAC ADDR:`,
 		`PXE-`,
+		`PXE->`,
+		`iPXE initialising`,
+		`iPXE \d+\.\d+`,
+		`Open Source Network Boot Firmware`,
+		`Booting baremetalservices`,
+		`UNDI code segment`,
+		`free base memory after PXE`,
 	}
 
 	// OS up patterns - indicates boot complete
@@ -168,20 +176,29 @@ func (a *Analytics) ProcessText(serverName, text string) {
 
 	// Check for BIOS (boot start)
 	if a.matchesBIOS(text) {
-		// If we have a current boot that's complete, this is a new reboot
-		if server.CurrentBoot != nil && server.CurrentBoot.Complete {
-			server.BootHistory = append(server.BootHistory, *server.CurrentBoot)
-			// Keep only last 10 boots
-			if len(server.BootHistory) > 10 {
-				server.BootHistory = server.BootHistory[1:]
+		log.Infof("BIOS detected for %s, CurrentBoot=%v", serverName, server.CurrentBoot != nil)
+		// If we have a current boot, this is a reboot - archive the old boot
+		if server.CurrentBoot != nil {
+			// Only archive if the boot has been running for more than 30 seconds
+			// This prevents multiple BIOS messages in same boot from creating duplicates
+			elapsed := time.Since(server.CurrentBoot.StartTime)
+			log.Infof("Existing boot elapsed: %v", elapsed)
+			if elapsed > 30*time.Second {
+				log.Infof("Archiving previous boot for %s (was complete=%v)", serverName, server.CurrentBoot.Complete)
+				server.BootHistory = append(server.BootHistory, *server.CurrentBoot)
+				// Keep only last 10 boots
+				if len(server.BootHistory) > 10 {
+					server.BootHistory = server.BootHistory[1:]
+				}
+				server.CurrentBoot = nil
+				server.OSUpSince = nil
+				changed = true
 			}
-			server.CurrentBoot = nil
-			server.OSUpSince = nil
-			changed = true
 		}
 
 		// Start new boot tracking if not already tracking
 		if server.CurrentBoot == nil {
+			log.Infof("Starting new boot tracking for %s, TotalReboots will be %d", serverName, server.TotalReboots+1)
 			server.CurrentBoot = &BootEvent{
 				StartTime: time.Now(),
 				Complete:  false,
@@ -298,8 +315,31 @@ func copyBootEvent(b *BootEvent) *BootEvent {
 }
 
 func (a *Analytics) matchesBIOS(text string) bool {
+	// Simple substring checks for common boot indicators
+	lowerText := strings.ToLower(text)
+	simplePatterns := []string{
+		"ipxe",
+		"pxe->",
+		"pxe-e",
+		"client mac addr",
+		"boot agent",
+		"undi code",
+		"bios date",
+		"american megatrends",
+		"supermicro",
+		"booting baremetalservices",
+		"network boot",
+	}
+	for _, p := range simplePatterns {
+		if strings.Contains(lowerText, p) {
+			log.Debugf("BIOS pattern matched (simple): %q in text len=%d", p, len(text))
+			return true
+		}
+	}
+
 	for _, p := range a.biosPatterns {
 		if p.MatchString(text) {
+			log.Debugf("BIOS pattern matched (regex): %v", p)
 			return true
 		}
 	}

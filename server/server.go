@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"strings"
 
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 
+	"console-server/config"
 	"console-server/discovery"
 	"console-server/logs"
 	"console-server/sol"
@@ -25,19 +27,43 @@ type Server struct {
 	logWriter  *logs.Writer
 	router     *mux.Router
 	httpServer *http.Server
+	macLookup  map[string]string // MAC -> server name
 }
 
-func New(port int, scanner *discovery.Scanner, solManager *sol.Manager, logWriter *logs.Writer) *Server {
+func New(port int, scanner *discovery.Scanner, solManager *sol.Manager, logWriter *logs.Writer, servers []config.ServerEntry) *Server {
 	s := &Server{
 		port:       port,
 		scanner:    scanner,
 		solManager: solManager,
 		logWriter:  logWriter,
 		router:     mux.NewRouter(),
+		macLookup:  make(map[string]string),
+	}
+
+	// Build MAC lookup table
+	for _, srv := range servers {
+		for _, mac := range srv.MACs {
+			// Normalize MAC: lowercase, no separators
+			normalized := normalizeMac(mac)
+			s.macLookup[normalized] = srv.Name
+			log.Debugf("MAC lookup: %s -> %s", normalized, srv.Name)
+		}
+	}
+	if len(s.macLookup) > 0 {
+		log.Infof("Loaded %d MAC address mappings", len(s.macLookup))
 	}
 
 	s.setupRoutes()
 	return s
+}
+
+// normalizeMac converts MAC to lowercase without separators
+func normalizeMac(mac string) string {
+	mac = strings.ToLower(mac)
+	mac = strings.ReplaceAll(mac, ":", "")
+	mac = strings.ReplaceAll(mac, "-", "")
+	mac = strings.ReplaceAll(mac, ".", "")
+	return mac
 }
 
 func (s *Server) setupRoutes() {
@@ -49,9 +75,11 @@ func (s *Server) setupRoutes() {
 	api.HandleFunc("/servers/{name}/logs/{filename}", s.handleGetLog).Methods("GET")
 	api.HandleFunc("/servers/{name}/status", s.handleStatus).Methods("GET")
 	api.HandleFunc("/servers/{name}/logs/clear", s.handleClearLogs).Methods("POST")
+	api.HandleFunc("/servers/{name}/logs/rotate", s.handleRotateLogs).Methods("POST")
 	api.HandleFunc("/logs/clear", s.handleClearAllLogs).Methods("POST")
 	api.HandleFunc("/servers/{name}/analytics", s.handleAnalytics).Methods("GET")
 	api.HandleFunc("/analytics", s.handleAllAnalytics).Methods("GET")
+	api.HandleFunc("/lookup/mac/{mac}", s.handleMacLookup).Methods("GET")
 
 	// HTMX HTML fragment routes
 	htmx := s.router.PathPrefix("/htmx").Subrouter()

@@ -71,7 +71,7 @@ func main() {
 		}
 	})
 
-	srv := server.New(cfg.Server.Port, scanner, solManager, logWriter)
+	srv := server.New(cfg.Server.Port, scanner, solManager, logWriter, cfg.Servers)
 
 	// Start log cleanup routine
 	go func() {

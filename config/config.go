@@ -17,8 +17,9 @@ type Config struct {
 }
 
 type ServerEntry struct {
-	Name string `yaml:"name"`
-	Host string `yaml:"host"`
+	Name string   `yaml:"name"`
+	Host string   `yaml:"host"`
+	MACs []string `yaml:"macs"` // List of MAC addresses for this server
 }
 
 type IPMIConfig struct {

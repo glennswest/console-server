@@ -37,7 +37,15 @@ func NewRebootDetector(patterns []string) *RebootDetector {
 		`Supermicro`,
 		`Intel\(R\) Boot Agent`,
 		`PXE-`,
+		`PXE->`,
 		`PXELINUX`,
+		`iPXE initialising`,
+		`iPXE \d+\.\d+`,
+		`Open Source Network Boot Firmware`,
+		`Booting baremetalservices`,
+		`UNDI code segment`,
+		`CLIENT MAC ADDR:`,
+		`free base memory after PXE`,
 	}
 
 	// OS patterns - indicate the OS is running
