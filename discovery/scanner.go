@@ -112,7 +112,8 @@ func (s *Scanner) fetchFromNetman() {
 		return
 	}
 
-	resp, err := s.httpClient.Get(s.netmanURL + "/api/hosts")
+	// Only fetch hosts from the g11 network (IPMI network)
+	resp, err := s.httpClient.Get(s.netmanURL + "/api/hosts?network=192.168.11.0/24")
 	if err != nil {
 		log.Warnf("Failed to fetch hosts from netman: %v", err)
 		return
@@ -126,10 +127,9 @@ func (s *Scanner) fetchFromNetman() {
 	}
 
 	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	// Track which servers we found
-	found := make(map[string]bool)
+	hasNewServers := false
 
 	for _, h := range hosts {
 		// Check if IP is in our range (192.168.11.10-199)
@@ -137,20 +137,26 @@ func (s *Scanner) fetchFromNetman() {
 			continue
 		}
 
-		// Determine server name: prefer hostname, fall back to IP
+		// Determine server name: prefer hostname, then dns_name, then reverse DNS, fall back to IP
 		name := h.Hostname
-		if name == "" {
+		if name == "" && h.DNSName != "" {
 			name = h.DNSName
+		}
+		if name == "" {
+			// Try reverse DNS lookup
+			names, err := net.LookupAddr(h.IPAddress)
+			if err == nil && len(names) > 0 {
+				name = strings.TrimSuffix(names[0], ".")
+			}
 		}
 		if name == "" {
 			name = h.IPAddress
 		}
 		// Clean up the name - remove domain suffix if present
-		if idx := strings.Index(name, "."); idx > 0 {
+		// But don't truncate if it's an IP address
+		if idx := strings.Index(name, "."); idx > 0 && !isIPAddress(name) {
 			name = name[:idx]
 		}
-
-		found[name] = true
 
 		// Add or update server
 		if existing, exists := s.servers[name]; exists {
@@ -168,13 +174,29 @@ func (s *Scanner) fetchFromNetman() {
 				MAC:      h.MAC,
 			}
 			log.Infof("Discovered server from netman: %s (%s)", name, h.IPAddress)
-
-			// Trigger onChange for new server
-			if s.onChange != nil {
-				go s.onChange(s.GetServers())
-			}
+			hasNewServers = true
 		}
 	}
+
+	s.mu.Unlock()
+
+	// Trigger onChange for any new servers (after releasing the lock)
+	if hasNewServers && s.onChange != nil {
+		go s.onChange(s.GetServers())
+	}
+}
+
+func isIPAddress(s string) bool {
+	parts := strings.Split(s, ".")
+	if len(parts) != 4 {
+		return false
+	}
+	for _, p := range parts {
+		if _, err := strconv.Atoi(p); err != nil {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *Scanner) isInRange(ip string) bool {
