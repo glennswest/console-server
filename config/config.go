@@ -28,9 +28,12 @@ type IPMIConfig struct {
 }
 
 type DiscoveryConfig struct {
-	Enabled  bool          `yaml:"enabled"`
-	Subnet   string        `yaml:"subnet"`
-	Interval time.Duration `yaml:"interval"`
+	Enabled    bool          `yaml:"enabled"`
+	Subnet     string        `yaml:"subnet"`
+	Interval   time.Duration `yaml:"interval"`
+	NetmanURL  string        `yaml:"netman_url"`
+	IPRangeMin int           `yaml:"ip_range_min"`
+	IPRangeMax int           `yaml:"ip_range_max"`
 }
 
 type RebootDetectionConfig struct {
@@ -55,8 +58,11 @@ func Load(path string) (*Config, error) {
 
 	cfg := &Config{
 		Discovery: DiscoveryConfig{
-			Subnet:   "192.168.11.0/24",
-			Interval: 5 * time.Minute,
+			Subnet:     "192.168.11.0/24",
+			Interval:   30 * time.Second,
+			NetmanURL:  "http://network.gw.lo",
+			IPRangeMin: 10,
+			IPRangeMax: 199,
 		},
 		RebootDetection: RebootDetectionConfig{
 			SOLPatterns:         []string{"POST", "BIOS", "Booting"},
