@@ -145,16 +145,26 @@ This will:
 - Create log directories
 - Start the service
 
-### Update
+### Quick Update (Binary Only)
 
 ```bash
 ./update.sh
 ```
 
 This will:
-- Build the Go binary
-- Copy new binary to console.g11.lo
-- Restart the service
+- Build Go binary for arm64
+- Stop the container on rose (192.168.1.88)
+- Copy binary to container filesystem
+- Start container
+
+### Full Rebuild (Container Image)
+
+```bash
+./build.sh   # Build container image tarball
+./deploy.sh  # Deploy via mkpod
+```
+
+Use full rebuild when changing dependencies, Dockerfile, or entrypoint.
 
 ## Dependencies
 

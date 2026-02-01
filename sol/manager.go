@@ -3,12 +3,9 @@ package sol
 import (
 	"context"
 	"fmt"
-	"io"
-	"os/exec"
 	"sync"
 	"time"
 
-	"github.com/creack/pty"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -172,91 +169,9 @@ func (m *Manager) runSession(ctx context.Context, session *Session) {
 }
 
 func (m *Manager) connectSOL(ctx context.Context, session *Session) error {
-	// First deactivate any existing SOL session
-	deactivate := exec.CommandContext(ctx, "ipmitool",
-		"-I", "lanplus",
-		"-H", session.IP,
-		"-U", m.username,
-		"-P", m.password,
-		"sol", "deactivate",
-	)
-	deactivate.Run() // Ignore errors
-
-	// Start SOL session with PTY
-	cmd := exec.CommandContext(ctx, "ipmitool",
-		"-I", "lanplus",
-		"-H", session.IP,
-		"-U", m.username,
-		"-P", m.password,
-		"sol", "activate",
-	)
-
-	// Start command with PTY
-	ptmx, err := pty.Start(cmd)
-	if err != nil {
-		return fmt.Errorf("failed to start with pty: %w", err)
-	}
-	defer ptmx.Close()
-
-	session.Connected = true
-	session.LastError = ""
-
-	// Read output in goroutine
-	done := make(chan error, 1)
-	go func() {
-		buf := make([]byte, 4096)
-		for {
-			n, err := ptmx.Read(buf)
-			if err != nil {
-				if err != io.EOF {
-					done <- err
-				}
-				close(done)
-				return
-			}
-
-			if n > 0 {
-				data := make([]byte, n)
-				copy(data, buf[:n])
-
-				// Write to log file
-				if m.logWriter != nil {
-					m.logWriter.Write(session.ServerName, data)
-				}
-
-				// Process for analytics
-				if m.analytics != nil {
-					m.analytics.ProcessText(session.ServerName, string(data))
-				}
-
-				// Note: Log rotation is now controlled via REST API from PXE server
-				// Automatic reboot detection is disabled to avoid conflicts
-
-				// Broadcast to all subscribers (non-blocking)
-				session.subMu.RLock()
-				for ch := range session.subscribers {
-					select {
-					case ch <- data:
-					default:
-						// Drop if subscriber channel full
-					}
-				}
-				session.subMu.RUnlock()
-			}
-		}
-	}()
-
-	// Wait for context cancellation or command exit
-	select {
-	case <-ctx.Done():
-		cmd.Process.Kill()
-		return ctx.Err()
-	case err := <-done:
-		session.Connected = false
-		cmd.Wait()
-		if err != nil {
-			return fmt.Errorf("read error: %w", err)
-		}
-		return fmt.Errorf("SOL session ended")
-	}
+	// SOL disabled - TTY handling on arm64 container causes hangs
+	// TODO: Implement native IPMI SOL using goipmi library
+	session.Connected = false
+	session.LastError = "SOL disabled - arm64 TTY issues"
+	return fmt.Errorf("SOL disabled")
 }

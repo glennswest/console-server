@@ -84,6 +84,11 @@ func (s *Scanner) GetServers() map[string]*Server {
 	return result
 }
 
+// Refresh triggers an immediate fetch from netman
+func (s *Scanner) Refresh() {
+	s.fetchFromNetman()
+}
+
 func (s *Scanner) Run(ctx context.Context) {
 	// Initial fetch from netman
 	s.fetchFromNetman()

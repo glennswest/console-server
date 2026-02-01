@@ -2,16 +2,12 @@ ipmi:
   username: ADMIN
   password: ADMIN
 
-servers:
-  - name: server1
-    host: server1.g11.lo
-  - name: server2
-    host: server2.g11.lo
+servers: []
 
 discovery:
-  enabled: false
-  subnet: "192.168.11.0/24"
-  interval: 5m
+  netman_url: "http://network.g10.lo"
+  ip_range_min: 10
+  ip_range_max: 199
 
 reboot_detection:
   sol_patterns:
@@ -25,4 +21,4 @@ logs:
   retention_days: 30
 
 server:
-  port: 8080
+  port: 80

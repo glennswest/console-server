@@ -174,6 +174,15 @@ func (s *Server) handleRotateLogs(w http.ResponseWriter, r *http.Request) {
 		logName = r.FormValue("name")
 	}
 
+	// Start SOL session if not already running (triggered by PXE on boot)
+	if session := s.solManager.GetSession(name); session == nil {
+		// Look up IP from scanner
+		servers := s.scanner.GetServers()
+		if srv, exists := servers[name]; exists {
+			s.solManager.StartSession(name, srv.IP)
+		}
+	}
+
 	newFile, err := s.logWriter.RotateWithName(name, logName)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -207,6 +216,14 @@ func (s *Server) handleMacLookup(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{
 		"mac":    mac,
 		"server": serverName,
+	})
+}
+
+func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
+	s.scanner.Refresh()
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"status": "ok",
 	})
 }
 

@@ -1,36 +1,38 @@
 #!/bin/bash
 set -e
 
-TARGET_HOST="console.g11.lo"
-TARGET_USER="root"
+ROUTER="192.168.1.88"
+CONTAINER="console.g11.lo"
 BINARY_NAME="console-server"
+REMOTE_PATH="/raid1/images/${CONTAINER}/usr/local/bin/${BINARY_NAME}"
 
 echo "=== Console Server Update ==="
 
 # Build the binary
-echo "Building binary..."
+echo "Building binary for arm64..."
 GOOS=linux GOARCH=arm64 go build -o ${BINARY_NAME} .
 
-# Stop existing instance first
-echo "Stopping service..."
-ssh ${TARGET_USER}@${TARGET_HOST} "pkill -f console-server; sleep 1" || true
-
-# Copy binary to target
-echo "Copying binary to ${TARGET_HOST}..."
-scp ${BINARY_NAME} ${TARGET_USER}@${TARGET_HOST}:/usr/local/bin/
-
-# Start on target
-echo "Starting service..."
-ssh ${TARGET_USER}@${TARGET_HOST} << 'ENDSSH'
-chmod +x /usr/local/bin/console-server
-cd /etc/console-server
-nohup /usr/local/bin/console-server > /var/log/console-server.log 2>&1 &
+# Stop container
+echo "Stopping container..."
+ssh admin@${ROUTER} "/container/stop [find name=\"${CONTAINER}\"]" 2>/dev/null || true
 sleep 2
-ps aux | grep console-server | grep -v grep || echo "Process not found"
-ENDSSH
+
+# Copy binary to container filesystem
+echo "Copying binary..."
+scp ${BINARY_NAME} admin@${ROUTER}:${REMOTE_PATH}
+
+# Start container
+echo "Starting container..."
+ssh admin@${ROUTER} "/container/start [find name=\"${CONTAINER}\"]"
+sleep 3
+
+# Check status
+echo "Checking status..."
+ssh admin@${ROUTER} "/container print where name=\"${CONTAINER}\""
 
 # Cleanup local binary
 rm -f ${BINARY_NAME}
 
 echo ""
 echo "Update complete!"
+echo "Console server: http://console.g11.lo"
