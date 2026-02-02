@@ -4,9 +4,9 @@ set -e
 ROUTER="192.168.1.88"
 CONTAINER="console.g11.lo"
 BINARY_NAME="console-server"
-REMOTE_PATH="/raid1/images/${CONTAINER}/usr/local/bin/${BINARY_NAME}"
+CONTAINER_ROOT="/raid1/images/${CONTAINER}"
 
-echo "=== Console Server Update ==="
+echo "=== Console Server Update (Scratch Container) ==="
 
 # Build static binary (no CGO, no libc needed)
 echo "Building static binary for arm64..."
@@ -17,9 +17,13 @@ echo "Stopping container..."
 ssh admin@${ROUTER} "/container/stop [find name=\"${CONTAINER}\"]" 2>/dev/null || true
 sleep 2
 
-# Copy binary to container filesystem
+# Copy binary to root of container
 echo "Copying binary..."
-scp ${BINARY_NAME} admin@${ROUTER}:${REMOTE_PATH}
+scp ${BINARY_NAME} admin@${ROUTER}:${CONTAINER_ROOT}/${BINARY_NAME}
+
+# Update container entrypoint for scratch (binary at root)
+echo "Setting entrypoint..."
+ssh admin@${ROUTER} "/container/set [find name=\"${CONTAINER}\"] cmd=\"/${BINARY_NAME}\"" 2>/dev/null || true
 
 # Start container
 echo "Starting container..."
