@@ -93,7 +93,18 @@ func cleanLogData(data []byte) []byte {
 	// Remove carriage returns
 	result = bytes.ReplaceAll(result, []byte{'\r'}, nil)
 
-	// Collapse multiple consecutive newlines into max 2
+	// Trim trailing whitespace from each line
+	lines := bytes.Split(result, []byte("\n"))
+	result = result[:0]
+	for i, line := range lines {
+		line = bytes.TrimRight(line, " \t")
+		if i > 0 {
+			result = append(result, '\n')
+		}
+		result = append(result, line...)
+	}
+
+	// Collapse runs of blank lines into a single blank line
 	for bytes.Contains(result, []byte("\n\n\n")) {
 		result = bytes.ReplaceAll(result, []byte("\n\n\n"), []byte("\n\n"))
 	}

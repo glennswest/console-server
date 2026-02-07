@@ -400,7 +400,7 @@ function setActiveLog(element) {
 // Track current log file per server
 const logState = {};
 
-async function loadLogFile(serverName, filename) {
+function loadLogFile(serverName, filename) {
     // Set active in list
     const list = document.getElementById(`loglist-${serverName}`);
     list.querySelectorAll('.list-group-item').forEach(item => {
@@ -410,25 +410,14 @@ async function loadLogFile(serverName, filename) {
         }
     });
 
-    // Store current file
-    logState[serverName] = { filename: filename, fileSize: 0 };
+    // Store current file and reset slider
+    logState[serverName] = { filename: filename };
+    const slider = document.getElementById(`log-slider-${serverName}`);
+    slider.value = 0;
+    updateLogPosition(serverName, 100);
 
-    // Get file info first
-    try {
-        const infoResp = await fetch(`/api/servers/${encodeURIComponent(serverName)}/logs/${encodeURIComponent(filename)}/info`);
-        const info = await infoResp.json();
-        logState[serverName].fileSize = info.size;
-
-        // Update slider (0 at bottom = end of log)
-        const slider = document.getElementById(`log-slider-${serverName}`);
-        slider.value = 0; // Bottom = end of log
-        updateLogPosition(serverName, 100);
-
-        // Load content at end
-        loadLogContent(serverName, filename, 100);
-    } catch (error) {
-        console.error('Failed to load log info:', error);
-    }
+    // Load content at end directly
+    loadLogContent(serverName, filename, 100);
 }
 
 async function loadLogContent(serverName, filename, pos) {
