@@ -1,11 +1,11 @@
 #!/bin/bash
 set -e
 
-BINARY_NAME="console-server"
-IMAGE_NAME="console-server"
+BINARY_NAME="ipmiserial"
+IMAGE_NAME="ipmiserial"
 TAR_NAME="${IMAGE_NAME}.tar"
 
-echo "=== Building Console Server Image ==="
+echo "=== Building ipmiserial ==="
 
 # Build the Go binary for arm64
 echo "Building binary for arm64..."

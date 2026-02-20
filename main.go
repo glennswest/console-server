@@ -10,11 +10,11 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"console-server/config"
-	"console-server/discovery"
-	"console-server/logs"
-	"console-server/server"
-	"console-server/sol"
+	"ipmiserial/config"
+	"ipmiserial/discovery"
+	"ipmiserial/logs"
+	"ipmiserial/server"
+	"ipmiserial/sol"
 )
 
 // Version info - increment based on change magnitude:
@@ -38,7 +38,7 @@ func main() {
 
 	// Log to file instead of stdout to avoid MikroTik container pipe saturation
 	os.MkdirAll(cfg.Logs.Path, 0755)
-	logFile, err := os.OpenFile(cfg.Logs.Path+"/console-server.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	logFile, err := os.OpenFile(cfg.Logs.Path+"/ipmiserial.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err == nil {
 		log.SetOutput(logFile)
 	}

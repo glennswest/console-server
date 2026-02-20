@@ -1,19 +1,14 @@
-# Multi-stage build for console-server
-FROM golang:1.24-alpine AS builder
+FROM golang:1.24 AS builder
 
-WORKDIR /app
+WORKDIR /build
 COPY go.mod go.sum ./
 RUN go mod download
-
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o console-server .
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o ipmiserial .
 
-# Runtime: minimal scratch image
 FROM scratch
-
-COPY --from=builder /app/console-server /console-server
-COPY config.yaml.example /config.yaml
-
+COPY --from=builder /build/ipmiserial /ipmiserial
+COPY --from=builder /build/config.yaml.example /config.yaml
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 EXPOSE 80
-
-ENTRYPOINT ["/console-server", "-config", "/config.yaml"]
+ENTRYPOINT ["/ipmiserial", "-config", "/config.yaml"]

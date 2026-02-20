@@ -3,10 +3,10 @@ set -e
 
 ROUTER="192.168.1.88"
 CONTAINER="console.g11.lo"
-BINARY_NAME="console-server"
+BINARY_NAME="ipmiserial"
 CONTAINER_ROOT="/raid1/images/${CONTAINER}"
 
-echo "=== Console Server Update (Scratch Container) ==="
+echo "=== ipmiserial Update (Scratch Container) ==="
 
 # Build static binary (no CGO, no libc needed)
 echo "Building static binary for arm64..."

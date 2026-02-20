@@ -56,10 +56,15 @@ func (w *Writer) Write(serverName string, data []byte) error {
 		delete(w.pending, serverName)
 	}
 
-	// If data ends mid-escape sequence, buffer the tail
-	if i := bytes.LastIndexByte(data, '\x1b'); i >= 0 && i > len(data)-10 {
-		w.pending[serverName] = append([]byte{}, data[i:]...)
-		data = data[:i]
+	// If data ends mid-escape sequence, buffer the incomplete tail
+	if i := bytes.LastIndexByte(data, '\x1b'); i >= 0 && i > len(data)-6 {
+		tail := data[i:]
+		// Only buffer if the sequence is incomplete (doesn't end with a letter)
+		last := tail[len(tail)-1]
+		if !((last >= 'A' && last <= 'Z') || (last >= 'a' && last <= 'z')) {
+			w.pending[serverName] = append([]byte{}, tail...)
+			data = data[:i]
+		}
 	}
 
 	cleaned := cleanLogData(data)

@@ -3,9 +3,9 @@ set -e
 
 TARGET_HOST="console.g11.lo"
 TARGET_USER="root"
-BINARY_NAME="console-server"
+BINARY_NAME="ipmiserial"
 
-echo "=== Console Server Install ==="
+echo "=== ipmiserial Install ==="
 
 # Build the binary
 echo "Building binary..."
@@ -22,17 +22,17 @@ ssh ${TARGET_USER}@${TARGET_HOST} << 'ENDSSH'
 set -e
 
 # Create directories
-mkdir -p /etc/console-server
+mkdir -p /etc/ipmiserial
 mkdir -p /data/logs
 
 # Install config if not exists
-if [ ! -f /etc/console-server/config.yaml ]; then
-    cp /tmp/config.yaml.example /etc/console-server/config.yaml
-    echo "Config installed at /etc/console-server/config.yaml"
+if [ ! -f /etc/ipmiserial/config.yaml ]; then
+    cp /tmp/config.yaml.example /etc/ipmiserial/config.yaml
+    echo "Config installed at /etc/ipmiserial/config.yaml"
 fi
 
 # Make binary executable
-chmod +x /usr/local/bin/console-server
+chmod +x /usr/local/bin/ipmiserial
 
 # Install ipmitool if not present
 if ! command -v ipmitool > /dev/null 2>&1; then
@@ -41,19 +41,19 @@ if ! command -v ipmitool > /dev/null 2>&1; then
 fi
 
 # Stop existing instance if running
-pkill -f console-server || true
+pkill -f ipmiserial || true
 sleep 1
 
 # Start the server
-cd /etc/console-server
-nohup /usr/local/bin/console-server > /var/log/console-server.log 2>&1 &
+cd /etc/ipmiserial
+nohup /usr/local/bin/ipmiserial > /var/log/ipmiserial.log 2>&1 &
 sleep 2
 
 echo ""
 echo "=== Installation Complete ==="
-ps aux | grep console-server | grep -v grep || echo "Process not found"
+ps aux | grep ipmiserial | grep -v grep || echo "Process not found"
 echo ""
-echo "Logs: /var/log/console-server.log"
+echo "Logs: /var/log/ipmiserial.log"
 echo "Web UI: http://console.g11.lo:8080"
 ENDSSH
 

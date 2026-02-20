@@ -1,11 +1,11 @@
 #!/bin/bash
 set -e
 
-TAR_NAME="console-server.tar"
+TAR_NAME="ipmiserial.tar"
 ROSE_HOST="admin@rose1.gw.lo"
 ROSE_TARBALL_PATH="raid1/tarballs"
 
-echo "=== Deploying Console Server to rose1 ==="
+echo "=== Deploying ipmiserial to rose1 ==="
 
 # Check if tarball exists
 if [ ! -f "${TAR_NAME}" ]; then

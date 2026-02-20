@@ -11,10 +11,10 @@ import (
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 
-	"console-server/config"
-	"console-server/discovery"
-	"console-server/logs"
-	"console-server/sol"
+	"ipmiserial/config"
+	"ipmiserial/discovery"
+	"ipmiserial/logs"
+	"ipmiserial/sol"
 )
 
 //go:embed web/*
