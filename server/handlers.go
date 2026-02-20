@@ -236,6 +236,37 @@ func (s *Server) handleMacLookup(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *Server) handleSendCommand(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	name := vars["name"]
+
+	var body struct {
+		Command string `json:"command"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid JSON body", http.StatusBadRequest)
+		return
+	}
+	if body.Command == "" {
+		http.Error(w, "command is required", http.StatusBadRequest)
+		return
+	}
+
+	if err := s.solManager.SendCommand(name, []byte(body.Command)); err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			http.Error(w, err.Error(), http.StatusNotFound)
+		} else if strings.Contains(err.Error(), "not connected") {
+			http.Error(w, err.Error(), http.StatusConflict)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
 func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 	s.scanner.Refresh()
 	w.Header().Set("Content-Type", "application/json")

@@ -103,6 +103,20 @@ func (m *Manager) GetSession(serverName string) *Session {
 	return m.sessions[serverName]
 }
 
+func (m *Manager) SendCommand(serverName string, data []byte) error {
+	m.mu.RLock()
+	session, exists := m.sessions[serverName]
+	m.mu.RUnlock()
+
+	if !exists {
+		return fmt.Errorf("server not found: %s", serverName)
+	}
+	if !session.Connected || session.solSession == nil {
+		return fmt.Errorf("server not connected: %s", serverName)
+	}
+	return session.solSession.Write(data)
+}
+
 func (m *Manager) GetSessions() map[string]*Session {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
