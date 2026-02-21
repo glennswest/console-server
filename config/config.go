@@ -28,12 +28,10 @@ type IPMIConfig struct {
 }
 
 type DiscoveryConfig struct {
-	Enabled    bool          `yaml:"enabled"`
-	Subnet     string        `yaml:"subnet"`
-	Interval   time.Duration `yaml:"interval"`
-	NetmanURL  string        `yaml:"netman_url"`
-	IPRangeMin int           `yaml:"ip_range_min"`
-	IPRangeMax int           `yaml:"ip_range_max"`
+	Enabled  bool          `yaml:"enabled"`
+	Subnet   string        `yaml:"subnet"`
+	Interval time.Duration `yaml:"interval"`
+	PXEURL   string        `yaml:"pxe_url"`
 }
 
 type RebootDetectionConfig struct {
@@ -58,11 +56,9 @@ func Load(path string) (*Config, error) {
 
 	cfg := &Config{
 		Discovery: DiscoveryConfig{
-			Subnet:     "192.168.11.0/24",
-			Interval:   30 * time.Second,
-			NetmanURL:  "http://network.gw.lo",
-			IPRangeMin: 10,
-			IPRangeMax: 199,
+			Subnet:   "192.168.11.0/24",
+			Interval: 30 * time.Second,
+			PXEURL:   "http://pxe.g10.lo:8080",
 		},
 		RebootDetection: RebootDetectionConfig{
 			SOLPatterns:         []string{"POST", "BIOS", "Booting"},

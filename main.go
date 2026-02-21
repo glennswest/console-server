@@ -44,8 +44,7 @@ func main() {
 	}
 
 	log.Infof("Starting Console Server v%s", Version)
-	log.Infof("  Netman: %s", cfg.Discovery.NetmanURL)
-	log.Infof("  IP Range: 192.168.11.%d-%d", cfg.Discovery.IPRangeMin, cfg.Discovery.IPRangeMax)
+	log.Infof("  PXE: %s", cfg.Discovery.PXEURL)
 	log.Infof("  Log path: %s", cfg.Logs.Path)
 	log.Infof("  Web port: %d", cfg.Server.Port)
 
@@ -69,7 +68,7 @@ func main() {
 
 	solManager := sol.NewManager(cfg.IPMI.Username, cfg.IPMI.Password, logWriter, rebootDetector, cfg.Logs.Path)
 
-	scanner := discovery.NewScanner(cfg.Discovery.NetmanURL, cfg.Discovery.IPRangeMin, cfg.Discovery.IPRangeMax)
+	scanner := discovery.NewScanner(cfg.Discovery.PXEURL)
 
 	// Add any statically configured servers (optional override)
 	for _, s := range cfg.Servers {

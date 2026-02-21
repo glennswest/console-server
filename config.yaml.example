@@ -5,9 +5,7 @@ ipmi:
 servers: []
 
 discovery:
-  netman_url: "http://network.g10.lo"
-  ip_range_min: 10
-  ip_range_max: 199
+  pxe_url: "http://pxe.g10.lo:8080"
 
 reboot_detection:
   sol_patterns:

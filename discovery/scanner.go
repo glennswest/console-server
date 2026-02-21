@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net"
 	"net/http"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -20,32 +19,29 @@ type Server struct {
 	MAC      string
 }
 
-// NetmanHost represents a host from the netman API
-type NetmanHost struct {
-	ID        int64  `json:"id"`
-	IPAddress string `json:"ip_address"`
-	Hostname  string `json:"hostname"`
-	DNSName   string `json:"dns_name"`
-	MAC       string `json:"mac_address"`
-	IsOnline  bool   `json:"is_online"`
+// PXEHost represents a host from the pxemanager API
+type PXEHost struct {
+	ID           int64  `json:"id"`
+	MAC          string `json:"mac"`
+	Hostname     string `json:"hostname"`
+	CurrentImage string `json:"current_image"`
+	IPMIIP       string `json:"ipmi_ip"`
+	IPMIUsername string `json:"ipmi_username"`
+	IPMIPassword string `json:"ipmi_password"`
 }
 
 type Scanner struct {
 	servers    map[string]*Server
 	mu         sync.RWMutex
 	onChange   func(servers map[string]*Server)
-	netmanURL  string
-	ipRangeMin int
-	ipRangeMax int
+	pxeURL     string
 	httpClient *http.Client
 }
 
-func NewScanner(netmanURL string, ipRangeMin, ipRangeMax int) *Scanner {
+func NewScanner(pxeURL string) *Scanner {
 	return &Scanner{
 		servers:    make(map[string]*Server),
-		netmanURL:  netmanURL,
-		ipRangeMin: ipRangeMin,
-		ipRangeMax: ipRangeMax,
+		pxeURL:     pxeURL,
 		httpClient: &http.Client{Timeout: 10 * time.Second},
 	}
 }
@@ -84,21 +80,21 @@ func (s *Scanner) GetServers() map[string]*Server {
 	return result
 }
 
-// Refresh triggers an immediate fetch from netman
+// Refresh triggers an immediate fetch from pxemanager
 func (s *Scanner) Refresh() {
-	s.fetchFromNetman()
+	s.fetchFromPXE()
 }
 
 func (s *Scanner) Run(ctx context.Context) {
-	// Initial fetch from netman
-	s.fetchFromNetman()
+	// Initial fetch from pxemanager
+	s.fetchFromPXE()
 
 	// Trigger initial onChange
 	if s.onChange != nil {
 		s.onChange(s.GetServers())
 	}
 
-	// Periodic refresh from netman
+	// Periodic refresh from pxemanager
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
@@ -107,129 +103,80 @@ func (s *Scanner) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			s.fetchFromNetman()
+			s.fetchFromPXE()
 		}
 	}
 }
 
-func (s *Scanner) fetchFromNetman() {
-	if s.netmanURL == "" {
+func (s *Scanner) fetchFromPXE() {
+	if s.pxeURL == "" {
 		return
 	}
 
-	// Only fetch hosts from the g11 network (IPMI network)
-	resp, err := s.httpClient.Get(s.netmanURL + "/api/hosts?network=192.168.11.0/24")
+	resp, err := s.httpClient.Get(s.pxeURL + "/api/hosts")
 	if err != nil {
-		log.Warnf("Failed to fetch hosts from netman: %v", err)
+		log.Warnf("Failed to fetch hosts from pxemanager: %v", err)
 		return
 	}
 	defer resp.Body.Close()
 
-	var hosts []NetmanHost
+	var hosts []PXEHost
 	if err := json.NewDecoder(resp.Body).Decode(&hosts); err != nil {
-		log.Warnf("Failed to decode netman response: %v", err)
+		log.Warnf("Failed to decode pxemanager response: %v", err)
 		return
 	}
 
 	s.mu.Lock()
 
-	// Build a set of IPs already known (from config or prior discovery)
 	knownIPs := make(map[string]string) // IP -> name
 	for name, srv := range s.servers {
 		knownIPs[srv.IP] = name
 	}
 
-	// Track which servers we found
 	hasNewServers := false
 
 	for _, h := range hosts {
-		// Check if IP is in our range (192.168.11.10-199)
-		if !s.isInRange(h.IPAddress) {
+		if h.IPMIIP == "" {
 			continue
 		}
 
-		// Determine server name: prefer hostname, then dns_name, fall back to IP
 		name := h.Hostname
-		if name == "" && h.DNSName != "" {
-			name = h.DNSName
-		}
 		if name == "" {
-			name = h.IPAddress
+			name = h.IPMIIP
 		}
-		// Clean up the name - remove domain suffix if present
-		// But don't truncate if it's an IP address
-		if idx := strings.Index(name, "."); idx > 0 && !isIPAddress(name) {
+		// Remove domain suffix if present
+		if idx := strings.Index(name, "."); idx > 0 && net.ParseIP(name) == nil {
 			name = name[:idx]
 		}
 
-		// If this IP is already known under a different name, update that entry instead
-		if existingName, exists := knownIPs[h.IPAddress]; exists && existingName != name {
+		if existingName, exists := knownIPs[h.IPMIIP]; exists && existingName != name {
 			existing := s.servers[existingName]
-			existing.Online = h.IsOnline
 			if h.MAC != "" {
 				existing.MAC = h.MAC
 			}
 			continue
 		}
 
-		// Add or update server
 		if existing, exists := s.servers[name]; exists {
-			// Update existing
-			existing.Online = h.IsOnline
 			if h.MAC != "" {
 				existing.MAC = h.MAC
 			}
 		} else {
-			// New server
 			s.servers[name] = &Server{
-				IP:       h.IPAddress,
+				IP:       h.IPMIIP,
 				Hostname: name,
-				Online:   h.IsOnline,
+				Online:   true,
 				MAC:      h.MAC,
 			}
-			knownIPs[h.IPAddress] = name
-			log.Infof("Discovered server from netman: %s (%s)", name, h.IPAddress)
+			knownIPs[h.IPMIIP] = name
+			log.Infof("Discovered server from pxemanager: %s (%s)", name, h.IPMIIP)
 			hasNewServers = true
 		}
 	}
 
 	s.mu.Unlock()
 
-	// Trigger onChange for any new servers (after releasing the lock)
 	if hasNewServers && s.onChange != nil {
 		go s.onChange(s.GetServers())
 	}
-}
-
-func isIPAddress(s string) bool {
-	parts := strings.Split(s, ".")
-	if len(parts) != 4 {
-		return false
-	}
-	for _, p := range parts {
-		if _, err := strconv.Atoi(p); err != nil {
-			return false
-		}
-	}
-	return true
-}
-
-func (s *Scanner) isInRange(ip string) bool {
-	parts := strings.Split(ip, ".")
-	if len(parts) != 4 {
-		return false
-	}
-
-	// Check if it's 192.168.11.x
-	if parts[0] != "192" || parts[1] != "168" || parts[2] != "11" {
-		return false
-	}
-
-	// Check if last octet is in range
-	lastOctet, err := strconv.Atoi(parts[3])
-	if err != nil {
-		return false
-	}
-
-	return lastOctet >= s.ipRangeMin && lastOctet <= s.ipRangeMax
 }
