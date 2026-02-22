@@ -53,7 +53,7 @@ func Load(path string) (*Config, error) {
 
 	cfg := &Config{
 		Discovery: DiscoveryConfig{
-			BMHURL: "http://api.rose1.gt.lo:8082",
+			BMHURL: "http://192.168.200.2:8082",
 		},
 		RebootDetection: RebootDetectionConfig{
 			SOLPatterns:         []string{"POST", "BIOS", "Booting"},
