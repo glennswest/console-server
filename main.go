@@ -21,7 +21,7 @@ import (
 // Major (x.0.0): Breaking changes, major rewrites
 // Minor (0.y.0): New features, significant enhancements
 // Patch (0.0.z): Bug fixes, minor improvements
-const Version = "1.3.0"
+var Version = "1.3.0"
 
 func main() {
 	configPath := flag.String("config", "config.yaml", "Path to config file")
@@ -44,7 +44,7 @@ func main() {
 	}
 
 	log.Infof("Starting Console Server v%s", Version)
-	log.Infof("  PXE: %s", cfg.Discovery.PXEURL)
+	log.Infof("  BMH API: %s", cfg.Discovery.BMHURL)
 	log.Infof("  Log path: %s", cfg.Logs.Path)
 	log.Infof("  Web port: %d", cfg.Server.Port)
 
@@ -68,7 +68,7 @@ func main() {
 
 	solManager := sol.NewManager(cfg.IPMI.Username, cfg.IPMI.Password, logWriter, rebootDetector, cfg.Logs.Path)
 
-	scanner := discovery.NewScanner(cfg.Discovery.PXEURL)
+	scanner := discovery.NewScanner(cfg.Discovery.BMHURL)
 
 	// Add any statically configured servers (optional override)
 	for _, s := range cfg.Servers {

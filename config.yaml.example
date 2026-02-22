@@ -5,7 +5,7 @@ ipmi:
 servers: []
 
 discovery:
-  pxe_url: "http://pxe.g10.lo:8080"
+  bmh_url: "http://api.rose1.gt.lo:8082"
 
 reboot_detection:
   sol_patterns:
