@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -9,6 +10,8 @@ import (
 
 	"github.com/gorilla/mux"
 )
+
+var clearScreenSeq = []byte("\x1b[2J")
 
 func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
@@ -80,9 +83,23 @@ func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
 			if !ok {
 				return
 			}
+			// BIOS redraws screen by positioning to row 1 without clearing.
+			// Inject clear screen so old content doesn't linger in xterm.js.
+			if containsRow1Cursor(data) {
+				data = append(clearScreenSeq, data...)
+			}
 			encoded := base64.StdEncoding.EncodeToString(data)
 			fmt.Fprintf(w, "data: %s\n\n", encoded)
 			flusher.Flush()
 		}
 	}
+}
+
+// containsRow1Cursor detects BIOS screen redraws by checking for cursor
+// positioning to row 1. The BIOS doesn't send clear screen before redrawing.
+func containsRow1Cursor(data []byte) bool {
+	return bytes.Contains(data, []byte("\x1b[01;00H")) ||
+		bytes.Contains(data, []byte("\x1b[1;1H")) ||
+		bytes.Contains(data, []byte("\x1b[1;0H")) ||
+		bytes.Contains(data, []byte("\x1b[H"))
 }
