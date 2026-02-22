@@ -628,3 +628,31 @@ func (s *Server) handleDebugBMH(w http.ResponseWriter, r *http.Request) {
 		"gateway_error":  gwErr,
 	})
 }
+
+func (s *Server) handleRawDump(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	name := vars["name"]
+
+	ch := s.solManager.Subscribe(name)
+	defer s.solManager.Unsubscribe(name, ch)
+
+	w.Header().Set("Content-Type", "text/plain")
+
+	timeout := time.After(5 * time.Second)
+	i := 0
+	for {
+		select {
+		case <-timeout:
+			if i == 0 {
+				fmt.Fprintf(w, "no data received in 5s\n")
+			}
+			return
+		case data, ok := <-ch:
+			if !ok {
+				return
+			}
+			fmt.Fprintf(w, "chunk %d (%d bytes): %x\n", i, len(data), data)
+			i++
+		}
+	}
+}
