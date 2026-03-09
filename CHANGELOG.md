@@ -22,6 +22,12 @@
 
 ## [Unreleased]
 
+### 2026-03-09
+- **fix:** Dockerfile: separate ENTRYPOINT and CMD so pod args can override config path — was ignoring ConfigMap config because ENTRYPOINT baked in `-config /config.yaml`
+- **fix:** config.yaml.example: port 80 → 8080 to match ConfigMap and Go default; re-add `ipmi:` section with default credentials
+- **fix:** deploy manifest: wrong registry IP (192.168.200.2 → registry.gt.lo), missing volumes section, wrong liveness probe port (80 → 8080), added ConfigMap volume mount
+- **fix:** Stale container image in registry had missing `/ipmiserial` binary — rebuilt and pushed working ARM64 image
+
 ### 2026-02-28
 - **feat:** Server-side raw screen buffer (64KB per server) — switching servers replays raw SOL bytes for correct terminal state instead of lossy cleaned-log catchup
 - **fix:** Revert to single SSE connection per server — multiple simultaneous SSE connections exhausted browser's per-domain connection limit (6 for HTTP/1.1), blocking all HTTP requests
