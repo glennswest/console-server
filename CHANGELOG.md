@@ -22,6 +22,10 @@
 
 ## [Unreleased]
 
+### 2026-03-13
+- **fix:** Switch server port from 8080 to 80 (Dockerfile, config.yaml.example, config/config.go default)
+- **chore:** Remove stale `ipmiserial-arm64` binary from git tracking, add to `.gitignore`
+
 ### 2026-03-09
 - **fix:** Dockerfile: separate ENTRYPOINT and CMD so pod args can override config path — was ignoring ConfigMap config because ENTRYPOINT baked in `-config /config.yaml`
 - **fix:** config.yaml.example: port 80 → 8080 to match ConfigMap and Go default; re-add `ipmi:` section with default credentials
