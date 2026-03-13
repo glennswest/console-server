@@ -1,4 +1,5 @@
 ipmiserial
+ipmiserial-arm64
 ipmiserial.tar
 config.yaml
 .last-deploy

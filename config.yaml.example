@@ -20,4 +20,4 @@ logs:
   retention_days: 30
 
 server:
-  port: 8080
+  port: 80

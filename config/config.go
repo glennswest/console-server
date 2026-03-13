@@ -65,7 +65,7 @@ func Load(path string) (*Config, error) {
 			RetentionDays: 30,
 		},
 		Server: ServerConfig{
-			Port: 8080,
+			Port: 80,
 		},
 	}
 
