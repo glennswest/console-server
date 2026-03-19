@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026-03-18
+- **feat:** Log viewer toolbar — shows raw log API URL above the viewer and a Copy button to copy the entire log file to clipboard
+
 ## [v2.1.0] — 2026-02-23
 
 ### Added

@@ -105,6 +105,10 @@ function renderServerTabs() {
                         </div>
                     </div>
                     <div class="col-md-10">
+                        <div class="log-toolbar" id="log-toolbar-${server.name}" style="display: none;">
+                            <input type="text" class="log-url-input" id="log-url-${server.name}" readonly>
+                            <button class="btn btn-outline-info btn-sm" onclick="copyFullLog('${server.name}')">Copy</button>
+                        </div>
                         <div class="log-viewer-container">
                             <div class="log-slider-vertical">
                                 <input type="range" class="form-range" id="log-slider-${server.name}"
@@ -473,6 +477,12 @@ function loadLogFile(serverName, filename) {
     slider.value = 0;
     updateLogPosition(serverName, 100);
 
+    // Show toolbar and set URL
+    const toolbar = document.getElementById(`log-toolbar-${serverName}`);
+    const urlInput = document.getElementById(`log-url-${serverName}`);
+    toolbar.style.display = 'flex';
+    urlInput.value = `${window.location.origin}/api/servers/${encodeURIComponent(serverName)}/logs/${encodeURIComponent(filename)}`;
+
     // Load content at end directly
     loadLogContent(serverName, filename, 100);
 }
@@ -538,6 +548,7 @@ async function clearServerLogs(serverName) {
         delete logState[serverName];
         document.getElementById(`log-content-${serverName}`).innerHTML =
             '<div class="text-muted p-3">Select a log file to view...</div>';
+        document.getElementById(`log-toolbar-${serverName}`).style.display = 'none';
         // Trigger htmx refresh
         htmx.trigger(document.body, `refreshLogList-${serverName}`);
     } catch (error) {
@@ -555,6 +566,7 @@ async function clearAllLogs() {
             delete logState[server.name];
             document.getElementById(`log-content-${server.name}`).innerHTML =
                 '<div class="text-muted p-3">Select a log file to view...</div>';
+            document.getElementById(`log-toolbar-${server.name}`).style.display = 'none';
         });
         // Trigger htmx refresh for current server
         if (currentServer) {
@@ -597,6 +609,28 @@ function copySelection(serverName) {
         } else {
             alert('No text selected. Click and drag to select text.');
         }
+    }
+}
+
+async function copyFullLog(serverName) {
+    const state = logState[serverName];
+    if (!state || !state.filename) return;
+
+    const btn = event.target;
+    const originalText = btn.textContent;
+    btn.textContent = 'Copying...';
+    btn.disabled = true;
+
+    try {
+        const resp = await fetch(`/api/servers/${encodeURIComponent(serverName)}/logs/${encodeURIComponent(state.filename)}`);
+        const text = await resp.text();
+        await navigator.clipboard.writeText(text);
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = originalText; btn.disabled = false; }, 1000);
+    } catch (err) {
+        console.error('Failed to copy log:', err);
+        btn.textContent = 'Failed';
+        setTimeout(() => { btn.textContent = originalText; btn.disabled = false; }, 1000);
     }
 }
 
