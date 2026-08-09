@@ -16,7 +16,12 @@ reboot_detection:
   chassis_poll_interval: 30s
 
 logs:
-  path: /var/lib/data/logs
+  # MUST be a single-level path inside a mounted volume. The image is scratch:
+  # /var does not exist, and RouterOS can only auto-create a ONE-level mount
+  # target — so a PVC mounted at /var/lib/data silently does not appear, and
+  # every SOL session then dies with "failed to create log dir: mkdir /var: no
+  # such file or directory", losing all console history (issue #1).
+  path: /data/logs
   retention_days: 30
 
 server:

@@ -40,4 +40,4 @@ spec:
         - name: config
           mountPath: /etc/ipmiserial
         - name: data
-          mountPath: /var/lib/data
+          mountPath: /data

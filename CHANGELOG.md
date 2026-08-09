@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### 2026-08-09
+- **fix:** Console log capture works again (#1). The PVC was mounted at `/var/lib/data`, but the image is scratch — `/var` does not exist and RouterOS only auto-creates a **single-level** mount target, so the volume never appeared inside the container and every SOL session failed with `failed to create log dir: mkdir /var: no such file or directory`, discarding all console history. Log path and the deploy manifest now use `/data/logs` on a `/data` mount. Verified live on g11: a server9 session produced a log file and `lastError` cleared.
+
 ## 2026-03-18
 - **feat:** Log viewer toolbar — shows raw log API URL above the viewer and a Copy button to copy the entire log file to clipboard
 
